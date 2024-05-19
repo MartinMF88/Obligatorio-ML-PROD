@@ -10,34 +10,32 @@ from scrapers.items import PropertyItem
 
 
 class GallitoSpider(CrawlSpider):
-    name = "gallito"
+    name = "animales"
     custom_settings = {
         "USER_AGENT": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         ),
         "FEEDS": {
-            "properties_gallito.jl": {"format": "jsonlines"},
+            "properties_animales.jl": {"format": "jsonlines"},
         },
         "CLOSESPIDER_ITEMCOUNT": 30,
     }
     start_urls = [
-        "https://www.gallito.com.uy/inmuebles/casas",  # !cant=80
-        "https://www.gallito.com.uy/inmuebles/apartamentos",  # !cant=80
+        "https://pixabay.com/es/photos/search/animales/",  # !cant=80
+        "https://pixabay.com/es/photos/search/mundo%20animal/",  # !cant=80
     ]
 
     rules = (
-        Rule(
-            LinkExtractor(
-                allow=(
-                    [
-                        r"\/inmuebles\/casas\?pag=\d+",  # !cant=80\?pag=\d+
-                        r"\/inmuebles\/apartamentos\?pag=\d+",  # !cant=80\?pag=\d+
-                    ]
-                )
+    Rule(
+        LinkExtractor(
+            allow=(
+                r"/es/photos/search/animales/\?pag=\d+",  
+                r"/es/photos/search/mundo%20animal/\?pag=\d+",
             )
-        ),
-        Rule(LinkExtractor(allow=(r"-\d{8}$")), callback="parse_property"),
+        )
+    ),
+    Rule(LinkExtractor(allow=(r"/es/photos/\w+-\d+/")), callback="parse_image"),
     )
 
     def parse_property(self, response: HtmlResponse) -> Iterator[dict]:
@@ -49,25 +47,25 @@ class GallitoSpider(CrawlSpider):
                 line for elem in response.css(query).extract() if (line := elem.strip())
             ]
 
-        # property details
-        property_id = get_with_css("#HfCodigoAviso::attr('value')")
-        img_urls = get_with_css("#HstrImg::attr('value')")
-        img_urls = [img for img in img_urls.split(",") if img]
+
+        animal_id = None 
+        img_urls = response.css("img[class='preview-img']::attr(src)").getall()
         possible_types = {
-            "casa": "HOUSE",
-            "apartamento": "APARTMENT",
+        "animales": "ANIMALS",
+        "mundo animal": "ANIMAL WORLD",
         }
+
 
         # every property has this fixed list of details on gallito
         fixed_details = extract_with_css("div.iconoDatos + p::text")
-        property_type = possible_types[fixed_details[0].lower()]
+        animal_type = possible_types[fixed_details[0].lower()]
 
-        property = {
-            "id": property_id,
+        animal = {
+            "id": animal_id,
             "image_urls": img_urls,
-            "source": "gallito",
+            "source": "animales",
             "url": requote_uri(response.request.url),
             "link": requote_uri(response.request.url),
-            "property_type": property_type,
+            "property_type": animal_type,
         }
         yield PropertyItem(**property)
