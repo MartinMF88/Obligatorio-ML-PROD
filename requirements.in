@@ -1,0 +1,7 @@
+scrapy
+
+# add Pillow to enable scrapy images pipeline
+# Pillow>=7.1.0
+
+# add Botocore to upload the images to AWS S3
+# Botocore>=1.4.87
