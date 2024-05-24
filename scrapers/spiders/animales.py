@@ -9,7 +9,7 @@ from scrapy.spiders import CrawlSpider, Rule
 from scrapers.items import PropertyItem
 
 
-class GallitoSpider(CrawlSpider):
+class AnimalesSpider(CrawlSpider):
     name = "animales"
     custom_settings = {
         "USER_AGENT": (
@@ -56,7 +56,6 @@ class GallitoSpider(CrawlSpider):
         }
 
 
-        # every property has this fixed list of details on gallito
         fixed_details = extract_with_css("div.iconoDatos + p::text")
         animal_type = possible_types[fixed_details[0].lower()]
 
