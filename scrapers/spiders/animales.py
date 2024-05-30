@@ -1,5 +1,6 @@
 from typing import Iterator
-
+import boto3
+import requests
 from requests.utils import requote_uri
 from scrapy import signals
 from scrapy.http.response.html import HtmlResponse
@@ -22,49 +23,59 @@ class AnimalesSpider(CrawlSpider):
         "CLOSESPIDER_ITEMCOUNT": 30,
     }
     start_urls = [
-        "https://pixabay.com/es/photos/search/animales/",  # !cant=80
-        "https://pixabay.com/es/photos/search/mundo%20animal/",  # !cant=80
+        "https://www.gallito.com.uy/inmuebles/casas",  # !cant=80
     ]
 
     rules = (
-    Rule(
-        LinkExtractor(
-            allow=(
-                r"/es/photos/search/animales/\?pag=\d+",  
-                r"/es/photos/search/mundo%20animal/\?pag=\d+",
-            )
-        )
-    ),
-    Rule(LinkExtractor(allow=(r"/es/photos/\w+-\d+/")), callback="parse_image"),
+        Rule(LinkExtractor(allow=r"-\d{8}$"), callback="parse_property"),
     )
-
-    def parse_property(self, response: HtmlResponse) -> Iterator[dict]:
-        def get_with_css(query: str) -> str:
-            return response.css(query).get(default="").strip()
-
-        def extract_with_css(query: str) -> list[str]:
-            return [
-                line for elem in response.css(query).extract() if (line := elem.strip())
-            ]
-
-
-        animal_id = None 
-        img_urls = response.css("img[class='preview-img']::attr(src)").getall()
-        possible_types = {
-        "animales": "ANIMALS",
-        "mundo animal": "ANIMAL WORLD",
+    
+    def __init__(self):
+        super().__init__()
+        self.s3_bucket_name = "obligatoriomlprodmmmbfm"
+        self.s3_client = boto3.client("s3")
+        self.possible_types = {
+            "casa": "HOUSE",
+            "apartamento": "APARTMENT",
         }
 
+    def parse_property(self, response):
+        property_id = response.css("#HfCodigoAviso::attr('value')").get()
+        img_urls = response.css("#HstrImg::attr('value')").get().split(",")
+        details = response.css("div.iconoDatos + p::text").getall()
+        property_type = self.possible_types.get(details[0].lower(), "UNKNOWN")
 
-        fixed_details = extract_with_css("div.iconoDatos + p::text")
-        animal_type = possible_types[fixed_details[0].lower()]
+        jsonlines_data = []
 
-        animal = {
-            "id": animal_id,
-            "image_urls": img_urls,
-            "source": "animales",
-            "url": requote_uri(response.request.url),
-            "link": requote_uri(response.request.url),
-            "property_type": animal_type,
-        }
-        yield PropertyItem(**property)
+        for img_url in img_urls:
+            if img_url.endswith(".jpg"):
+                img_data = requests.get(img_url).content
+                object_key = f"images/{property_id}/{img_url.split('/')[-1]}"
+                self.s3_client.put_object(Bucket=self.s3_bucket_name, Key=object_key, Body=img_data)
+
+                image_info = {
+                    "id": property_id,
+                    "image_urls": [img_url],
+                    "source": "gallito",
+                    "url": response.url,
+                    "link": response.url,
+                    "property_type": property_type,
+                }
+                jsonlines_data.append(image_info)
+
+        # Convertir las líneas de información en JSONL
+        jsonlines_content = "\n".join(json.dumps(item, ensure_ascii=False) for item in jsonlines_data)
+
+        # Crear o actualizar el archivo JSONL en S3
+        jsonlines_file_key = f'properties_gallito/{property_id}.jsonl'
+        try:
+            existing_object = self.s3_client.get_object(Bucket=self.s3_bucket_name, Key=jsonlines_file_key)
+            existing_jsonlines_content = existing_object['Body'].read().decode('utf-8')
+            existing_jsonlines_content += "\n" + jsonlines_content  # Agregar nuevas líneas
+            self.s3_client.put_object(Bucket=self.s3_bucket_name, Key=jsonlines_file_key, Body=existing_jsonlines_content)
+        except self.s3_client.exceptions.NoSuchKey:
+            # El archivo no existe, crearlo con las nuevas líneas
+            self.s3_client.put_object(Bucket=self.s3_bucket_name, Key=jsonlines_file_key, Body=jsonlines_content)
+
+    def closed(self, reason):
+        super().closed(reason)
