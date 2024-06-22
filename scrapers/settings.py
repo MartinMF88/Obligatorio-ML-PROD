@@ -69,7 +69,7 @@ ITEM_PIPELINES = {
     "scrapy.pipelines.images.ImagesPipeline": 120
 }
 
-IMAGES_STORE = "s3://obligatoriomlprodmmmbfm/animales/"
+IMAGES_STORE = "s3://obligatoriomlprodmmmbfm/casas/"
 #IMAGES_STORE = "<local_path>"
 
 # Enable and configure the AutoThrottle extension (disabled by default)
