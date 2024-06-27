@@ -11,7 +11,7 @@ from scrapers.items import PropertyItem
 
 
 class AnimalesSpider(CrawlSpider):
-    name = "animales"
+    name = "gallito"
     custom_settings = {
         "USER_AGENT": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
