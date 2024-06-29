@@ -7,3 +7,4 @@ Pillow>=7.1.0
 Botocore>=1.4.87
 boto3
 jsonlines
+numpy
